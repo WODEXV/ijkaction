@@ -159,8 +159,10 @@ jobs:
       - name: Build dependencies
         run: |
           chmod +x prebuild.sh
-          # 修改 prebuild.sh 中的 SDK 路径
+          # 修改 prebuild.sh 中的 SDK 路径# 修改 SDK 路径和 apt 命令
           sed -i 's|SDK_DIR=/root/ohos-sdk-4.1/ohos-sdk/linux/11|SDK_DIR=/opt/ohos-sdk-4.1/ohos-sdk/linux/11|g' prebuild.sh
+          sed -i 's|apt update|sudo apt update|g' prebuild.sh
+          sed -i 's|apt install|sudo apt install|g' prebuild.sh
           ./prebuild.sh
 
       - name: Check build results
