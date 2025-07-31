@@ -169,8 +169,18 @@ jobs:
         run: |
           echo "检查编译结果..."
           ls -la ijkplayer/src/main/cpp/third_party/
-          find ijkplayer/src/main/cpp/third_party/ -name "*.a" | head -10
-
+          echo "=== 检查各个库目录 ==="
+          for lib in ffmpeg yuv openssl soundtouch openh264; do
+            if [ -d "ijkplayer/src/main/cpp/third_party/$lib" ]; then
+              echo "✅ $lib 目录存在"
+              ls -la "ijkplayer/src/main/cpp/third_party/$lib" | head -5
+            else
+              echo "❌ $lib 目录不存在"
+            fi
+          done
+          echo "=== 静态库文件 ==="
+          find ijkplayer/src/main/cpp/third_party/ -name "*.a" | head -15
+          
       - name: Package results
         run: |
           tar -czf ijkplayer-dependencies.tar.gz ijkplayer/src/main/cpp/third_party/
