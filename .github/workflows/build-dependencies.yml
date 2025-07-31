@@ -1,0 +1,104 @@
+name: Build ijkplayer Dependencies
+
+on:
+  workflow_dispatch: # 手动触发
+    inputs:
+      sdk_url:
+        description: 'OpenHarmony SDK 下载链接'
+        required: true
+        default: 'https://example.com/ohos-sdk.tar.gz'
+  push:
+    branches: [main]
+    paths:
+      - 'prebuild.sh'
+      - 'doc/**'
+
+jobs:
+  build-dependencies:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360 # 6小时超时
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Free up disk space
+        run: |
+          # 清理不需要的软件，释放空间
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force
+          df -h
+
+      - name: Setup environment
+        run: |
+          sudo apt update
+          sudo apt install -y gcc make cmake pkg-config autoconf automake patch libtool
+          sudo apt install -y wget unzip git python3 python3-pip ninja-build meson
+          sudo apt install -y build-essential flex bison yasm nasm
+
+      - name: Download OpenHarmony SDK
+        run: |
+          # 下载 SDK 压缩包
+          SDK_URL="${{ github.event.inputs.sdk_url || 'https://cidownload.openharmony.cn/version/Release_Version/OpenHarmony-4.1.10.5/20250521_154226/version-Release_Version-OpenHarmony-4.1.10.5-20250521_154226-ohos-sdk-full_4.1-Release.tar.gz' }}"
+          echo "下载 SDK: $SDK_URL"
+          wget "$SDK_URL" -O ohos-sdk-full.tar.gz
+
+          # 解压主压缩包
+          echo "解压 SDK 主包..."
+          tar -xzf ohos-sdk-full.tar.gz
+
+          # 查看解压后的文件
+          echo "=== 解压后的文件列表 ==="
+          ls -la
+          find . -name "*.zip" | head -10
+
+      - name: Setup SDK directory structure
+        run: |
+          # 使用专门的脚本设置 SDK 结构
+          chmod +x setup_sdk_structure.sh
+          ./setup_sdk_structure.sh
+
+      - name: Verify system architecture
+        run: |
+          echo "=== 系统架构信息 ==="
+          uname -m    # 应该显示 x86_64
+          uname -s    # 应该显示 Linux
+          lscpu | grep Architecture
+          echo "=== 系统资源 ==="
+          free -h
+          df -h
+
+      - name: Set SDK environment
+        run: |
+          # 设置 SDK 环境变量
+          export OHOS_SDK="/opt/ohos-sdk-4.1/ohos-sdk/linux/11"
+          echo "OHOS_SDK=$OHOS_SDK" >> $GITHUB_ENV
+          echo "✅ SDK 环境变量已设置: $OHOS_SDK"
+
+      - name: Build dependencies
+        run: |
+          chmod +x prebuild.sh
+          # 修改 prebuild.sh 中的 SDK 路径
+          sed -i 's|SDK_DIR=/root/ohos-sdk-4.1/ohos-sdk/linux/11|SDK_DIR=/opt/ohos-sdk-4.1/ohos-sdk/linux/11|g' prebuild.sh
+          ./prebuild.sh
+
+      - name: Check build results
+        run: |
+          echo "检查编译结果..."
+          ls -la ijkplayer/src/main/cpp/third_party/
+          find ijkplayer/src/main/cpp/third_party/ -name "*.a" | head -10
+
+      - name: Package results
+        run: |
+          tar -czf ijkplayer-dependencies.tar.gz ijkplayer/src/main/cpp/third_party/
+          ls -lh ijkplayer-dependencies.tar.gz
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ijkplayer-dependencies
+          path: ijkplayer-dependencies.tar.gz
+          retention-days: 30
