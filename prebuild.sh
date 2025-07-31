@@ -156,7 +156,7 @@ function start_build()
         return 1
     fi
 
-    bash build.sh $FFMPEG_NAME $LIBYUV_NAME $SOUNDTOUCH_NAME
+    bash build.sh $FFMPEG_NAME $LIBYUV_NAME $SOUNDTOUCH_NAME openh264
     result=$?
     cd $OLDPWD
     return $result
@@ -189,13 +189,19 @@ function install_depends()
         echo "soundtouch build failed!"
         return 1
     fi
-
+    cp -arf $LYCIUM_TOOLS_DIR/usr/openh264 $install_dir/openh264
+    if [ $? -ne 0 ]
+    then
+        echo "openh264 build failed!"
+        return 1
+    fi
     if [ -d $CI_OUTPUT_DIR ]
     then
         cp -arf $LYCIUM_TOOLS_DIR/usr/$FFMPEG_NAME $CI_OUTPUT_DIR
         cp -arf $LYCIUM_TOOLS_DIR/usr/yuv $CI_OUTPUT_DIR
         cp -arf $LYCIUM_TOOLS_DIR/usr/$OPESSL_NAME $CI_OUTPUT_DIR
         cp -arf $LYCIUM_TOOLS_DIR/usr/soundtouch $CI_OUTPUT_DIR
+        cp -arf $LYCIUM_TOOLS_DIR/usr/openh264 $CI_OUTPUT_DIR
     fi
 
     return 0
