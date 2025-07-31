@@ -39,27 +39,105 @@ jobs:
           sudo apt install -y wget unzip git python3 python3-pip ninja-build meson
           sudo apt install -y build-essential flex bison yasm nasm
 
-      - name: Download OpenHarmony SDK
+      - name: Download and extract OpenHarmony SDK
         run: |
           # 下载 SDK 压缩包
           SDK_URL="${{ github.event.inputs.sdk_url || 'https://cidownload.openharmony.cn/version/Release_Version/OpenHarmony-4.1.10.5/20250521_154226/version-Release_Version-OpenHarmony-4.1.10.5-20250521_154226-ohos-sdk-full_4.1-Release.tar.gz' }}"
           echo "下载 SDK: $SDK_URL"
           wget "$SDK_URL" -O ohos-sdk-full.tar.gz
 
-          # 解压主压缩包
-          echo "解压 SDK 主包..."
-          tar -xzf ohos-sdk-full.tar.gz
+          # 步骤1: 创建 ohos-sdk-4.1 目录
+          echo "=== 步骤1: 创建 SDK 基础目录 ==="
+          mkdir -p /opt/ohos-sdk-4.1
 
-          # 查看解压后的文件
-          echo "=== 解压后的文件列表 ==="
-          ls -la
-          find . -name "*.zip" | head -10
+          # 步骤2: 解压 SDK 到 ohos-sdk-4.1 目录
+          echo "=== 步骤2: 解压 SDK 到 /opt/ohos-sdk-4.1/ ==="
+          tar -xzf ohos-sdk-full.tar.gz -C /opt/ohos-sdk-4.1/
+
+          # 检查解压结果
+          echo "=== 检查解压结果 ==="
+          echo "ohos-sdk-4.1 目录内容："
+          ls -la /opt/ohos-sdk-4.1/
+
+          if [ -d "/opt/ohos-sdk-4.1/ohos-sdk" ]; then
+            echo "✅ 找到 ohos-sdk 目录"
+            ls -la /opt/ohos-sdk-4.1/ohos-sdk/
+
+            if [ -d "/opt/ohos-sdk-4.1/ohos-sdk/linux" ]; then
+              echo "✅ 找到 linux 目录"
+              echo "linux 目录中的 zip 文件："
+              ls -la /opt/ohos-sdk-4.1/ohos-sdk/linux/*.zip 2>/dev/null || echo "未找到 zip 文件"
+            else
+              echo "❌ 未找到 linux 目录"
+            fi
+          else
+            echo "❌ 未找到 ohos-sdk 目录"
+          fi
 
       - name: Setup SDK directory structure
         run: |
-          # 使用专门的脚本设置 SDK 结构
-          chmod +x setup_sdk_structure.sh
-          ./setup_sdk_structure.sh
+          # 步骤3: 创建 11 文件夹
+          echo "=== 步骤3: 创建 11 文件夹 ==="
+          mkdir -p /opt/ohos-sdk-4.1/ohos-sdk/linux/11
+          echo "✅ 创建了 /opt/ohos-sdk-4.1/ohos-sdk/linux/11 目录"
+
+          # 步骤4: 从 ohos-sdk-4.1/ohos-sdk/linux 路径下找到 zip 文件并解压到 11 文件夹
+          echo "=== 步骤4: 解压 zip 文件到 11 文件夹 ==="
+
+          ZIP_SOURCE_PATH="/opt/ohos-sdk-4.1/ohos-sdk/linux"
+          ZIP_TARGET_PATH="/opt/ohos-sdk-4.1/ohos-sdk/linux/11"
+
+          if [ -d "$ZIP_SOURCE_PATH" ]; then
+            echo "✅ 找到 zip 源目录: $ZIP_SOURCE_PATH"
+
+            # 列出所有 zip 文件
+            echo "找到的 zip 文件："
+            ls -la "$ZIP_SOURCE_PATH"/*.zip 2>/dev/null || echo "未找到 zip 文件"
+
+            # 解压所有 zip 文件到 11 目录
+            cd "$ZIP_SOURCE_PATH"
+            for zip_file in *.zip; do
+              if [ -f "$zip_file" ]; then
+                echo "解压: $zip_file → $ZIP_TARGET_PATH"
+                unzip -q "$zip_file" -d "$ZIP_TARGET_PATH"
+
+                if [ $? -eq 0 ]; then
+                  echo "  ✅ $zip_file 解压成功"
+                else
+                  echo "  ❌ $zip_file 解压失败"
+                fi
+              fi
+            done
+
+            # 返回工作目录
+            cd "$GITHUB_WORKSPACE"
+
+          else
+            echo "❌ 未找到 zip 源目录: $ZIP_SOURCE_PATH"
+            echo "当前 ohos-sdk-4.1 目录结构："
+            find /opt/ohos-sdk-4.1 -type d | head -10
+            exit 1
+          fi
+
+          # 检查最终结果
+          echo "=== 最终 SDK 结构检查 ==="
+          echo "11 目录内容："
+          ls -la "$ZIP_TARGET_PATH"
+
+          # 查找关键组件
+          echo "=== 查找关键组件 ==="
+          if [ -d "$ZIP_TARGET_PATH/native" ]; then
+            echo "✅ 找到 native 目录"
+            find "$ZIP_TARGET_PATH/native" -name "clang" -type f | head -3
+          else
+            echo "⚠️  未找到 native 目录，列出所有目录："
+            find "$ZIP_TARGET_PATH" -type d | head -10
+          fi
+
+          # 设置执行权限
+          echo "=== 设置执行权限 ==="
+          find "$ZIP_TARGET_PATH" -type f -exec chmod +x {} \; 2>/dev/null || true
+          echo "✅ 权限设置完成"
 
       - name: Verify system architecture
         run: |

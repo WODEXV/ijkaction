@@ -11,23 +11,52 @@ SDK_WINDOWS_DIR="$SDK_BASE_DIR/ohos-sdk/windows/11"
 
 echo "=== OpenHarmony SDK 结构设置 ==="
 
-# 创建目录结构
+# 注意：此脚本假设 SDK 已经解压到 /opt/ohos-sdk-4.1/ 目录
+# 正确的操作顺序：
+# 1. tar -xzf ohos-sdk-full.tar.gz -C /opt/ohos-sdk-4.1/
+# 2. 在 /opt/ohos-sdk-4.1/ohos-sdk/linux/ 中找到 zip 文件
+# 3. 创建 11 文件夹
+# 4. 将 zip 文件解压到 11 文件夹下
+
+# 步骤3: 创建 11 目录结构
 echo "创建 SDK 目录结构..."
 mkdir -p "$SDK_LINUX_DIR"
 mkdir -p "$SDK_WINDOWS_DIR"
 
-# 查找所有 zip 文件
+# 查找所有 zip 文件，首先在 ohos-sdk/linux 目录下查找
 echo "查找 SDK zip 文件..."
-ZIP_FILES=$(find . -maxdepth 2 -name "*.zip" -type f)
+
+# 先检查 ohos-sdk/linux 目录
+if [ -d "ohos-sdk/linux" ]; then
+    echo "在 ohos-sdk/linux 目录中查找 zip 文件..."
+    ZIP_FILES=$(find ohos-sdk/linux -name "*.zip" -type f)
+    ZIP_SEARCH_DIR="ohos-sdk/linux"
+elif [ -d "ohos-sdk" ]; then
+    echo "在 ohos-sdk 目录中查找 zip 文件..."
+    ZIP_FILES=$(find ohos-sdk -name "*.zip" -type f)
+    ZIP_SEARCH_DIR="ohos-sdk"
+else
+    echo "在当前目录中查找 zip 文件..."
+    ZIP_FILES=$(find . -maxdepth 3 -name "*.zip" -type f)
+    ZIP_SEARCH_DIR="."
+fi
 
 if [ -z "$ZIP_FILES" ]; then
     echo "❌ 未找到任何 zip 文件"
-    echo "当前目录内容："
+    echo "当前目录结构："
     ls -la
+    if [ -d "ohos-sdk" ]; then
+        echo "ohos-sdk 目录内容："
+        ls -la ohos-sdk/
+        if [ -d "ohos-sdk/linux" ]; then
+            echo "ohos-sdk/linux 目录内容："
+            ls -la ohos-sdk/linux/
+        fi
+    fi
     exit 1
 fi
 
-echo "找到以下 zip 文件："
+echo "在 $ZIP_SEARCH_DIR 中找到以下 zip 文件："
 echo "$ZIP_FILES"
 
 # 解压 Linux 相关的 zip 文件
