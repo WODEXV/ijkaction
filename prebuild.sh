@@ -210,7 +210,7 @@ function install_depends()
         cp -arf $LYCIUM_TOOLS_DIR/usr/soundtouch $CI_OUTPUT_DIR
         cp -arf $LYCIUM_TOOLS_DIR/usr/openh264 $CI_OUTPUT_DIR
         # 在 openh264 拷贝后添加：
-        cp -arf $LYCIUM_TOOLS_DIR/usr/libvpx $install_dir/libvpx
+        cp -arf $LYCIUM_TOOLS_DIR/usr/libvpx $CI_OUTPUT_DIR
 if [ $? -ne 0 ]
 then
     echo "libvpx build failed!"
