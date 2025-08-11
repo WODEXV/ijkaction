@@ -156,7 +156,7 @@ function start_build()
         return 1
     fi
 
-    bash build.sh $FFMPEG_NAME $LIBYUV_NAME $SOUNDTOUCH_NAME openh264 libvpx
+    bash build.sh $FFMPEG_NAME $LIBYUV_NAME $SOUNDTOUCH_NAME openh264 
     result=$?
     cd $OLDPWD
     return $result
