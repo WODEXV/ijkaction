@@ -163,14 +163,42 @@ jobs:
           sed -i 's|SDK_DIR=/root/ohos-sdk-4.1/ohos-sdk/linux/11|SDK_DIR=/opt/ohos-sdk-4.1/ohos-sdk/linux/11|g' prebuild.sh
           sed -i 's|apt update|sudo apt update|g' prebuild.sh
           sed -i 's|apt install|sudo apt install|g' prebuild.sh
-          ./prebuild.sh
+          #./prebuild.sh
+          # 修改编译命令，添加 libvpx
+          sed -i 's|bash build.sh \$FFMPEG_NAME \$LIBYUV_NAME \$SOUNDTOUCH_NAME openh264|bash build.sh \$FFMPEG_NAME \$LIBYUV_NAME \$SOUNDTOUCH_NAME openh264 libvpx|g' prebuild.sh
+
+          # 确保在正确的工作目录执行
+          echo "执行编译前的路径检查:"
+          pwd
+          ls -la prebuild.sh
+
+          # 启动编译脚本（后台运行）
+          echo "=== 启动编译脚本 ==="
+          ./prebuild.sh &
+          PREBUILD_PID=$!
+
+          # 并行运行 FFmpeg 配置修改脚本
+          chmod +x modify_ffmpeg_for_vp8.sh
+          ./modify_ffmpeg_for_vp8.sh
+
+          # 等待编译完成
+          wait $PREBUILD_PID
+          PREBUILD_RESULT=$?
+          echo "编译结果: $PREBUILD_RESULT"
+
+          if [ $PREBUILD_RESULT -ne 0 ]; then
+            echo "❌ 编译失败"
+            exit $PREBUILD_RESULT
+          fi
 
       - name: Check build results
         run: |
           echo "检查编译结果..."
           ls -la ijkplayer/src/main/cpp/third_party/
           echo "=== 检查各个库目录 ==="
-          for lib in ffmpeg yuv openssl soundtouch openh264; do
+          #修改前for lib in ffmpeg yuv openssl soundtouch openh264; do
+          # 修改后：
+            for lib in ffmpeg yuv openssl soundtouch openh264 libvpx; do
             if [ -d "ijkplayer/src/main/cpp/third_party/$lib" ]; then
               echo "✅ $lib 目录存在"
               ls -la "ijkplayer/src/main/cpp/third_party/$lib" | head -5
