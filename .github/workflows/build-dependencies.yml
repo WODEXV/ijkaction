@@ -22,6 +22,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Check current user and path
+        run: |
+          # 检查当前用户和路径，确保后续操作正确
+          echo "当前用户: $(whoami)"
+          echo "当前路径: $(pwd)"
+          echo "HOME: $HOME"
+
       - name: Free up disk space
         run: |
           # 清理不需要的软件，释放空间
@@ -158,47 +165,83 @@ jobs:
 
       - name: Build dependencies
         run: |
+          # 保持在当前工作目录，只对需要权限的命令使用 sudo
           chmod +x prebuild.sh
-          # 修改 prebuild.sh 中的 SDK 路径# 修改 SDK 路径和 apt 命令
+
+          # 修改 SDK 路径和 apt 命令
           sed -i 's|SDK_DIR=/root/ohos-sdk-4.1/ohos-sdk/linux/11|SDK_DIR=/opt/ohos-sdk-4.1/ohos-sdk/linux/11|g' prebuild.sh
           sed -i 's|apt update|sudo apt update|g' prebuild.sh
           sed -i 's|apt install|sudo apt install|g' prebuild.sh
-          #./prebuild.sh
-          # 修改编译命令，添加 libvpx
-          sed -i 's|bash build.sh \$FFMPEG_NAME \$LIBYUV_NAME \$SOUNDTOUCH_NAME openh264|bash build.sh \$FFMPEG_NAME \$LIBYUV_NAME \$SOUNDTOUCH_NAME openh264 libvpx|g' prebuild.sh
 
           # 确保在正确的工作目录执行
           echo "执行编译前的路径检查:"
           pwd
           ls -la prebuild.sh
 
-          # 启动编译脚本（后台运行）
-          echo "=== 启动编译脚本 ==="
-          ./prebuild.sh &
-          PREBUILD_PID=$!
+          # 创建一个智能的编译脚本
+          cat > smart_build.sh << 'EOF'
+          #!/bin/bash
+          set -e
 
-          # 并行运行 FFmpeg 配置修改脚本
-          chmod +x modify_ffmpeg_for_vp8.sh
-          ./modify_ffmpeg_for_vp8.sh
+          echo "=== 智能编译脚本开始 ==="
+
+          # 启动原始编译脚本
+          ./prebuild.sh &
+          BUILD_PID=$!
+
+          # 监控 tpc_c_cplusplus 下载
+          echo "=== 监控 tpc_c_cplusplus 下载 ==="
+          while [ ! -d "tpc_c_cplusplus/thirdparty" ]; do
+            if ! kill -0 $BUILD_PID 2>/dev/null; then
+              echo "编译进程意外结束"
+              exit 1
+            fi
+            echo "等待 tpc_c_cplusplus 下载..."
+            sleep 3
+          done
+
+          echo "✅ tpc_c_cplusplus 下载完成"
+
+          # 等待一下确保文件完整
+          sleep 5
+
+          # 修改 FFmpeg 配置（如果文件存在）
+          if [ -f "tpc_c_cplusplus/thirdparty/FFmpeg-ff4.0/HPKBUILD" ]; then
+            echo "=== 修改 FFmpeg 配置 ==="
+
+            # 1. 添加 libvpx 依赖
+            sed -i 's|"openh264")|"openh264" "libvpx")|g' tpc_c_cplusplus/thirdparty/FFmpeg-ff4.0/HPKBUILD
+
+            # 2. 添加 VP8 编译选项
+            sed -i 's|--enable-libopenh264|--enable-libopenh264 --enable-decoder=vp8 --enable-parser=vp8 --enable-libvpx --enable-libvpx-vp8-decoder|g' tpc_c_cplusplus/thirdparty/FFmpeg-ff4.0/HPKBUILD
+
+            echo "✅ FFmpeg 配置修改完成"
+
+            # 验证修改
+            echo "=== 验证修改结果 ==="
+            grep "depends=" tpc_c_cplusplus/thirdparty/FFmpeg-ff4.0/HPKBUILD
+            grep "enable-decoder=vp8" tpc_c_cplusplus/thirdparty/FFmpeg-ff4.0/HPKBUILD || echo "VP8 配置未找到"
+          fi
 
           # 等待编译完成
-          wait $PREBUILD_PID
-          PREBUILD_RESULT=$?
-          echo "编译结果: $PREBUILD_RESULT"
+          echo "=== 等待编译完成 ==="
+          wait $BUILD_PID
+          EOF
 
-          if [ $PREBUILD_RESULT -ne 0 ]; then
-            echo "❌ 编译失败"
-            exit $PREBUILD_RESULT
-          fi
+          chmod +x smart_build.sh
+
+          # 修改 prebuild.sh 添加 libvpx 编译
+          sed -i 's|bash build.sh \$FFMPEG_NAME \$LIBYUV_NAME \$SOUNDTOUCH_NAME openh264|bash build.sh libvpx openh264 \$FFMPEG_NAME \$LIBYUV_NAME \$SOUNDTOUCH_NAME|g' prebuild.sh
+
+          # 执行智能编译
+          ./smart_build.sh
 
       - name: Check build results
         run: |
           echo "检查编译结果..."
           ls -la ijkplayer/src/main/cpp/third_party/
           echo "=== 检查各个库目录 ==="
-          #修改前for lib in ffmpeg yuv openssl soundtouch openh264; do
-          # 修改后：
-            for lib in ffmpeg yuv openssl soundtouch openh264 libvpx; do
+          for lib in ffmpeg yuv openssl soundtouch openh264 libvpx; do
             if [ -d "ijkplayer/src/main/cpp/third_party/$lib" ]; then
               echo "✅ $lib 目录存在"
               ls -la "ijkplayer/src/main/cpp/third_party/$lib" | head -5
@@ -208,7 +251,7 @@ jobs:
           done
           echo "=== 静态库文件 ==="
           find ijkplayer/src/main/cpp/third_party/ -name "*.a" | head -15
-          
+
       - name: Package results
         run: |
           tar -czf ijkplayer-dependencies.tar.gz ijkplayer/src/main/cpp/third_party/
