@@ -209,18 +209,19 @@ jobs:
           if [ -f "tpc_c_cplusplus/thirdparty/FFmpeg-ff4.0/HPKBUILD" ]; then
             echo "=== 修改 FFmpeg 配置 ==="
 
-            # 1. 添加 libvpx 依赖
-            sed -i 's|"openh264")|"openh264" "libvpx")|g' tpc_c_cplusplus/thirdparty/FFmpeg-ff4.0/HPKBUILD
-
-            # 2. 添加 VP8 编译选项
-            sed -i 's|--enable-libopenh264|--enable-libopenh264 --enable-decoder=vp8 --enable-parser=vp8 --enable-libvpx --enable-libvpx-vp8-decoder|g' tpc_c_cplusplus/thirdparty/FFmpeg-ff4.0/HPKBUILD
+            # 添加 VP8 内置支持（不依赖外部 libvpx）
+            sed -i 's|--enable-libopenh264|--enable-libopenh264 --enable-decoder=vp8 --enable-parser=vp8|g' tpc_c_cplusplus/thirdparty/FFmpeg-ff4.0/HPKBUILD
 
             echo "✅ FFmpeg 配置修改完成"
 
             # 验证修改
             echo "=== 验证修改结果 ==="
             grep "depends=" tpc_c_cplusplus/thirdparty/FFmpeg-ff4.0/HPKBUILD
-            grep "enable-decoder=vp8" tpc_c_cplusplus/thirdparty/FFmpeg-ff4.0/HPKBUILD || echo "VP8 配置未找到"
+            if grep -q "enable-decoder=vp8" tpc_c_cplusplus/thirdparty/FFmpeg-ff4.0/HPKBUILD; then
+              echo "✅ VP8 解码器已启用"
+            else
+              echo "❌ VP8 解码器未启用"
+            fi
           fi
 
           # 等待编译完成
@@ -230,8 +231,8 @@ jobs:
 
           chmod +x smart_build.sh
 
-          # 修改 prebuild.sh 添加 libvpx 编译
-          sed -i 's|bash build.sh \$FFMPEG_NAME \$LIBYUV_NAME \$SOUNDTOUCH_NAME openh264|bash build.sh libvpx openh264 \$FFMPEG_NAME \$LIBYUV_NAME \$SOUNDTOUCH_NAME|g' prebuild.sh
+          # 不修改编译顺序，保持原样（不编译 libvpx）
+          echo "保持原始编译顺序"
 
           # 执行智能编译
           ./smart_build.sh
@@ -241,7 +242,7 @@ jobs:
           echo "检查编译结果..."
           ls -la ijkplayer/src/main/cpp/third_party/
           echo "=== 检查各个库目录 ==="
-          for lib in ffmpeg yuv openssl soundtouch openh264 libvpx; do
+          for lib in ffmpeg yuv openssl soundtouch openh264; do
             if [ -d "ijkplayer/src/main/cpp/third_party/$lib" ]; then
               echo "✅ $lib 目录存在"
               ls -la "ijkplayer/src/main/cpp/third_party/$lib" | head -5
