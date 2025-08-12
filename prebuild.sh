@@ -156,7 +156,7 @@ function start_build()
         return 1
     fi
 
-    bash build.sh $FFMPEG_NAME $LIBYUV_NAME $SOUNDTOUCH_NAME openh264 
+    bash build.sh $FFMPEG_NAME $LIBYUV_NAME $SOUNDTOUCH_NAME openh264
     result=$?
     cd $OLDPWD
     return $result
@@ -195,13 +195,7 @@ function install_depends()
         echo "openh264 build failed!"
         return 1
     fi
-    # 在 openh264 拷贝后添加：
-    cp -arf $LYCIUM_TOOLS_DIR/usr/libvpx $install_dir/libvpx
-    if [ $? -ne 0 ]
-    then
-        echo "libvpx build failed!"
-        return 1
-    fi
+
     if [ -d $CI_OUTPUT_DIR ]
     then
         cp -arf $LYCIUM_TOOLS_DIR/usr/$FFMPEG_NAME $CI_OUTPUT_DIR
@@ -209,13 +203,6 @@ function install_depends()
         cp -arf $LYCIUM_TOOLS_DIR/usr/$OPESSL_NAME $CI_OUTPUT_DIR
         cp -arf $LYCIUM_TOOLS_DIR/usr/soundtouch $CI_OUTPUT_DIR
         cp -arf $LYCIUM_TOOLS_DIR/usr/openh264 $CI_OUTPUT_DIR
-        # 在 openh264 拷贝后添加11：
-        cp -arf $LYCIUM_TOOLS_DIR/usr/libvpx $CI_OUTPUT_DIR
-if [ $? -ne 0 ]
-then
-    echo "libvpx build failed!"
-    return 1
-fi
     fi
 
     return 0
