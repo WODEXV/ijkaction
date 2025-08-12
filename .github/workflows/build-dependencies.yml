@@ -48,7 +48,7 @@ jobs:
 
       - name: Download and extract OpenHarmony SDK
         run: |
-          # 下载 SDK 压缩包
+          # 下载 SDK压缩包
           SDK_URL="${{ github.event.inputs.sdk_url || 'https://cidownload.openharmony.cn/version/Release_Version/OpenHarmony-4.1.10.5/20250521_154226/version-Release_Version-OpenHarmony-4.1.10.5-20250521_154226-ohos-sdk-full_4.1-Release.tar.gz' }}"
           echo "下载 SDK: $SDK_URL"
           wget "$SDK_URL" -O ohos-sdk-full.tar.gz
