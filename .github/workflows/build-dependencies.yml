@@ -185,54 +185,32 @@ jobs:
 
           # 等待 tpc_c_cplusplus 下载完成
           echo "=== 等待 tpc_c_cplusplus 下载完成 ==="
-          while [ ! -f "tpc_c_cplusplus/thirdparty/FFmpeg-ff4.0/HPKBUILD" ]; do
+          while [ ! -d "tpc_c_cplusplus/thirdparty" ]; do
             echo "等待 tpc_c_cplusplus 下载..."
             sleep 5
           done
 
-          echo "=== 检查 FFmpeg HPKBUILD 文件内容 ==="
-          echo "完整的 HPKBUILD 文件内容:"
-          cat tpc_c_cplusplus/thirdparty/FFmpeg-ff4.0/HPKBUILD
-          echo ""
-          echo "=== configure 相关行 ==="
-          grep -n "configure" tpc_c_cplusplus/thirdparty/FFmpeg-ff4.0/HPKBUILD
-          echo ""
+          echo "=== 修改 FFmpeg 和 FFmpeg-ff4.0 配置以支持 VP8 ==="
 
-          echo "=== 修改 FFmpeg 配置以支持 VP8 ==="
-          echo "修改前的 configure 行:"
-          grep "PKG_CONFIG_LIBDIR.*configure" tpc_c_cplusplus/thirdparty/FFmpeg-ff4.0/HPKBUILD
+          # 只检查这两个目录
+          for ffmpeg_name in "FFmpeg" "FFmpeg-ff4.0"; do
+            HPKBUILD_FILE="tpc_c_cplusplus/thirdparty/$ffmpeg_name/HPKBUILD"
+            if [ -f "$HPKBUILD_FILE" ]; then
+              echo "=== 修改 $ffmpeg_name ==="
 
-          # 尝试多种修改方式
-          echo "尝试方式1: 在 --enable-libopenh264 后添加"
-          sed -i 's|--enable-libopenh264|--enable-libopenh264 --enable-decoder=vp8 --enable-parser=vp8|g' tpc_c_cplusplus/thirdparty/FFmpeg-ff4.0/HPKBUILD
+              # 添加 VP8 支持
+              sed -i 's|--enable-libopenh264|--enable-libopenh264 --enable-decoder=vp8 --enable-parser=vp8|g' "$HPKBUILD_FILE"
+              sed -i 's| > \$buildlog| --enable-decoder=vp8 --enable-parser=vp8 > \$buildlog|g' "$HPKBUILD_FILE"
 
-          echo "尝试方式2: 在 --sysroot 前添加"
-          sed -i 's|--sysroot=${OHOS_SDK}/native/sysroot|--enable-decoder=vp8 --enable-parser=vp8 --sysroot=${OHOS_SDK}/native/sysroot|g' tpc_c_cplusplus/thirdparty/FFmpeg-ff4.0/HPKBUILD
-
-          echo "尝试方式3: 在 > \$buildlog 前添加"
-          sed -i 's| > \$buildlog| --enable-decoder=vp8 --enable-parser=vp8 > \$buildlog|g' tpc_c_cplusplus/thirdparty/FFmpeg-ff4.0/HPKBUILD
-
-          echo "✅ FFmpeg 配置修改完成"
-          echo "=== 验证修改结果 ==="
-          echo "修改后的 configure 行:"
-          grep "PKG_CONFIG_LIBDIR.*configure" tpc_c_cplusplus/thirdparty/FFmpeg-ff4.0/HPKBUILD
-          echo ""
-
-          if grep -q "enable-decoder=vp8" tpc_c_cplusplus/thirdparty/FFmpeg-ff4.0/HPKBUILD; then
-            echo "✅ VP8 解码器已添加到配置中"
-            echo "VP8 相关配置:"
-            grep -o "enable-[^[:space:]]*vp8[^[:space:]]*" tpc_c_cplusplus/thirdparty/FFmpeg-ff4.0/HPKBUILD
-          else
-            echo "❌ VP8 解码器未添加到配置中"
-            echo "最后尝试: 直接在 configure 行末尾添加"
-            sed -i 's|2>&1|--enable-decoder=vp8 --enable-parser=vp8 2>\&1|g' tpc_c_cplusplus/thirdparty/FFmpeg-ff4.0/HPKBUILD
-
-            if grep -q "enable-decoder=vp8" tpc_c_cplusplus/thirdparty/FFmpeg-ff4.0/HPKBUILD; then
-              echo "✅ 最后尝试成功"
+              if grep -q "enable-decoder=vp8" "$HPKBUILD_FILE"; then
+                echo "✅ $ffmpeg_name VP8 配置已添加"
+              else
+                echo "❌ $ffmpeg_name VP8 配置添加失败"
+              fi
             else
-              echo "❌ 所有尝试都失败了"
+              echo "❌ $HPKBUILD_FILE 不存在"
             fi
-          fi
+          done
 
           # 等待编译完成
           wait $PREBUILD_PID
@@ -260,50 +238,34 @@ jobs:
           echo "=== 静态库文件 ==="
           find ijkplayer/src/main/cpp/third_party/ -name "*.a" | head -10
 
-          echo "=== 检查 FFmpeg 编译配置 ==="
-          # 查找 config.h 文件
-          CONFIG_H_FILES=$(find tpc_c_cplusplus/lycium/usr/FFmpeg-ff4.0/ -name "config.h" 2>/dev/null || true)
-          if [ -n "$CONFIG_H_FILES" ]; then
-            echo "找到 config.h 文件:"
-            echo "$CONFIG_H_FILES"
+          echo "=== 检查编译后的 config.h 文件 ==="
 
-            for config_file in $CONFIG_H_FILES; do
-              echo "=== 检查 $config_file 中的 VP8 配置 ==="
-              if grep -q "CONFIG_VP8_DECODER" "$config_file"; then
-                VP8_CONFIG=$(grep "CONFIG_VP8_DECODER" "$config_file")
-                echo "VP8 解码器配置: $VP8_CONFIG"
-
-                if echo "$VP8_CONFIG" | grep -q "CONFIG_VP8_DECODER 1"; then
-                  echo "✅ VP8 解码器已启用"
-                else
-                  echo "❌ VP8 解码器未启用"
-                fi
-              else
-                echo "❌ 未找到 CONFIG_VP8_DECODER 配置"
-              fi
-
-              if grep -q "CONFIG_VP8_PARSER" "$config_file"; then
-                VP8_PARSER=$(grep "CONFIG_VP8_PARSER" "$config_file")
-                echo "VP8 解析器配置: $VP8_PARSER"
-              else
-                echo "❌ 未找到 CONFIG_VP8_PARSER 配置"
-              fi
-            done
-          else
-            echo "❌ 未找到 config.h 文件"
-          fi
-
-          echo "=== 检查最终的 HPKBUILD 配置 ==="
-          if [ -f "tpc_c_cplusplus/thirdparty/FFmpeg-ff4.0/HPKBUILD" ]; then
-            echo "最终的 configure 行:"
-            grep "PKG_CONFIG_LIBDIR.*configure" tpc_c_cplusplus/thirdparty/FFmpeg-ff4.0/HPKBUILD
-
-            if grep -q "enable-decoder=vp8" tpc_c_cplusplus/thirdparty/FFmpeg-ff4.0/HPKBUILD; then
-              echo "✅ HPKBUILD 中包含 VP8 配置"
+          # 检查可能的 config.h 位置
+          for ffmpeg_name in "FFmpeg" "FFmpeg-ff4.0"; do
+            CONFIG_H=$(find tpc_c_cplusplus/lycium/usr/$ffmpeg_name/ -name "config.h" 2>/dev/null | head -1)
+            if [ -n "$CONFIG_H" ]; then
+              echo "找到 $ffmpeg_name 的 config.h: $CONFIG_H"
+              VP8_DECODER=$(grep "CONFIG_VP8_DECODER" "$CONFIG_H" || echo "未找到")
+              VP8_PARSER=$(grep "CONFIG_VP8_PARSER" "$CONFIG_H" || echo "未找到")
+              echo "$ffmpeg_name VP8 解码器: $VP8_DECODER"
+              echo "$ffmpeg_name VP8 解析器: $VP8_PARSER"
             else
-              echo "❌ HPKBUILD 中不包含 VP8 配置"
+              echo "❌ 未找到 $ffmpeg_name 的 config.h"
             fi
-          fi
+          done
+
+          echo "=== 验证最终的 HPKBUILD 配置 ==="
+          for ffmpeg_name in "FFmpeg" "FFmpeg-ff4.0"; do
+            HPKBUILD_FILE="tpc_c_cplusplus/thirdparty/$ffmpeg_name/HPKBUILD"
+            if [ -f "$HPKBUILD_FILE" ]; then
+              echo "$ffmpeg_name 最终配置:"
+              if grep -q "enable-decoder=vp8" "$HPKBUILD_FILE"; then
+                echo "✅ $ffmpeg_name 包含 VP8 配置"
+              else
+                echo "❌ $ffmpeg_name 不包含 VP8 配置"
+              fi
+            fi
+          done
 
       - name: Package results
         run: |
