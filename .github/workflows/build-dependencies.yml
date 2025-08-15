@@ -269,12 +269,38 @@ jobs:
 
       - name: Package results
         run: |
+          echo "=== 打包编译好的依赖库 ==="
           tar -czf ijkplayer-dependencies.tar.gz ijkplayer/src/main/cpp/third_party/
           ls -lh ijkplayer-dependencies.tar.gz
 
-      - name: Upload artifacts
+          echo "=== 打包完整项目 ==="
+          # 创建完整项目压缩包（排除不必要的文件）
+          tar -czf ijkplayer-complete-project.tar.gz \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            --exclude='*.log' \
+            --exclude='tpc_c_cplusplus/.git' \
+            --exclude='tpc_c_cplusplus/lycium/build' \
+            --exclude='tpc_c_cplusplus/lycium/tmp' \
+            .
+
+          echo "完整项目压缩包信息:"
+          ls -lh ijkplayer-complete-project.tar.gz
+
+          echo "压缩包大小对比:"
+          echo "依赖库: $(ls -lh ijkplayer-dependencies.tar.gz | awk '{print $5}')"
+          echo "完整项目: $(ls -lh ijkplayer-complete-project.tar.gz | awk '{print $5}')"
+
+      - name: Upload dependency libraries
         uses: actions/upload-artifact@v4
         with:
           name: ijkplayer-dependencies
           path: ijkplayer-dependencies.tar.gz
+          retention-days: 30
+
+      - name: Upload complete project
+        uses: actions/upload-artifact@v4
+        with:
+          name: ijkplayer-complete-project
+          path: ijkplayer-complete-project.tar.gz
           retention-days: 30
