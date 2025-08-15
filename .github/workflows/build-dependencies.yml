@@ -274,13 +274,24 @@ jobs:
           ls -lh ijkplayer-dependencies.tar.gz
 
           echo "=== 打包完整项目 ==="
-          # 创建完整项目压缩包（排除不必要的文件）
+
+          # 确保关键的验证文件存在
+          echo "检查关键验证文件:"
+          for ffmpeg_name in "FFmpeg" "FFmpeg-ff4.0"; do
+            HPKBUILD="tpc_c_cplusplus/thirdparty/$ffmpeg_name/HPKBUILD"
+            CONFIG_H=$(find tpc_c_cplusplus/lycium/usr/$ffmpeg_name/ -name "config.h" 2>/dev/null | head -1)
+
+            echo "- $ffmpeg_name HPKBUILD: $([ -f "$HPKBUILD" ] && echo "✅存在" || echo "❌缺失")"
+            echo "- $ffmpeg_name config.h: $([ -n "$CONFIG_H" ] && echo "✅存在: $CONFIG_H" || echo "❌缺失")"
+          done
+
+          # 创建完整项目压缩包（排除不必要的文件，但保留验证文件）
           tar -czf ijkplayer-complete-project.tar.gz \
             --exclude='.git' \
             --exclude='node_modules' \
             --exclude='*.log' \
             --exclude='tpc_c_cplusplus/.git' \
-            --exclude='tpc_c_cplusplus/lycium/build' \
+            --exclude='tpc_c_cplusplus/lycium/build/*.o' \
             --exclude='tpc_c_cplusplus/lycium/tmp' \
             .
 
@@ -290,6 +301,45 @@ jobs:
           echo "压缩包大小对比:"
           echo "依赖库: $(ls -lh ijkplayer-dependencies.tar.gz | awk '{print $5}')"
           echo "完整项目: $(ls -lh ijkplayer-complete-project.tar.gz | awk '{print $5}')"
+
+          echo "=== 创建 VP8 验证指南 ==="
+          cat > VP8_VERIFICATION_GUIDE.md << 'EOF'
+          # VP8 支持验证指南
+
+          下载完整项目后，可以通过以下方式验证 VP8 是否开启：
+
+          ## 方法1：检查 config.h 文件
+          ```bash
+          # 查找 FFmpeg config.h 文件
+          find . -name "config.h" -path "*/FFmpeg*" -exec grep -H "CONFIG_VP8_DECODER" {} \;
+
+          # 预期结果（VP8 已启用）：
+          # CONFIG_VP8_DECODER 1
+          # CONFIG_VP8_PARSER 1
+          ```
+
+          ## 方法2：检查 HPKBUILD 配置
+          ```bash
+          # 检查编译配置
+          grep -r "enable-decoder=vp8" tpc_c_cplusplus/thirdparty/FFmpeg*/HPKBUILD
+
+          # 预期结果：
+          # --enable-decoder=vp8 --enable-parser=vp8
+          ```
+
+          ## 方法3：检查库文件符号
+          ```bash
+          # 检查编译好的库
+          strings ijkplayer/src/main/cpp/third_party/ffmpeg/arm64-v8a/lib/libavcodec.a | grep -i vp8
+          ```
+
+          ## 关键文件位置
+          - 配置文件：`tpc_c_cplusplus/thirdparty/FFmpeg*/HPKBUILD`
+          - 编译配置：`tpc_c_cplusplus/lycium/usr/FFmpeg*/config.h`
+          - 库文件：`ijkplayer/src/main/cpp/third_party/ffmpeg/*/lib/libavcodec.a`
+          EOF
+
+          echo "✅ VP8 验证指南已创建"
 
       - name: Upload dependency libraries
         uses: actions/upload-artifact@v4
