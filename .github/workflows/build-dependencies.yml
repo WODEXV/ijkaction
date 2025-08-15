@@ -240,13 +240,35 @@ jobs:
 
           echo "=== 检查编译后的 config.h 文件 ==="
 
-          # 检查可能的 config.h 位置
+          # 搜索所有可能的 config.h 位置
+          echo "搜索所有 config.h 文件..."
+          find tpc_c_cplusplus/ -name "config.h" 2>/dev/null | head -10
+
+          # 检查 FFmpeg 相关的 config.h
           for ffmpeg_name in "FFmpeg" "FFmpeg-ff4.0"; do
-            CONFIG_H=$(find tpc_c_cplusplus/lycium/usr/$ffmpeg_name/ -name "config.h" 2>/dev/null | head -1)
+            echo "=== 搜索 $ffmpeg_name 的 config.h ==="
+
+            # 多个可能的路径
+            POSSIBLE_PATHS=(
+              "tpc_c_cplusplus/lycium/usr/$ffmpeg_name"
+              "tpc_c_cplusplus/lycium/$ffmpeg_name"
+              "tpc_c_cplusplus/thirdparty/$ffmpeg_name"
+            )
+
+            CONFIG_H=""
+            for path in "${POSSIBLE_PATHS[@]}"; do
+              if [ -d "$path" ]; then
+                CONFIG_H=$(find "$path" -name "config.h" 2>/dev/null | head -1)
+                if [ -n "$CONFIG_H" ]; then
+                  echo "✅ 在 $path 找到 config.h: $CONFIG_H"
+                  break
+                fi
+              fi
+            done
+
             if [ -n "$CONFIG_H" ]; then
-              echo "找到 $ffmpeg_name 的 config.h: $CONFIG_H"
-              VP8_DECODER=$(grep "CONFIG_VP8_DECODER" "$CONFIG_H" || echo "未找到")
-              VP8_PARSER=$(grep "CONFIG_VP8_PARSER" "$CONFIG_H" || echo "未找到")
+              VP8_DECODER=$(grep "CONFIG_VP8_DECODER" "$CONFIG_H" 2>/dev/null || echo "未找到")
+              VP8_PARSER=$(grep "CONFIG_VP8_PARSER" "$CONFIG_H" 2>/dev/null || echo "未找到")
               echo "$ffmpeg_name VP8 解码器: $VP8_DECODER"
               echo "$ffmpeg_name VP8 解析器: $VP8_PARSER"
             else
@@ -275,25 +297,15 @@ jobs:
 
           echo "=== 打包完整项目 ==="
 
-          # 确保关键的验证文件存在
-          echo "检查关键验证文件:"
-          for ffmpeg_name in "FFmpeg" "FFmpeg-ff4.0"; do
-            HPKBUILD="tpc_c_cplusplus/thirdparty/$ffmpeg_name/HPKBUILD"
-            CONFIG_H=$(find tpc_c_cplusplus/lycium/usr/$ffmpeg_name/ -name "config.h" 2>/dev/null | head -1)
-
-            echo "- $ffmpeg_name HPKBUILD: $([ -f "$HPKBUILD" ] && echo "✅存在" || echo "❌缺失")"
-            echo "- $ffmpeg_name config.h: $([ -n "$CONFIG_H" ] && echo "✅存在: $CONFIG_H" || echo "❌缺失")"
-          done
-
-          # 创建完整项目压缩包（排除不必要的文件，但保留验证文件）
-          tar -czf ijkplayer-complete-project.tar.gz \
+          # 直接创建完整项目压缩包
+          tar --warning=no-file-changed -czf ijkplayer-complete-project.tar.gz \
             --exclude='.git' \
             --exclude='node_modules' \
             --exclude='*.log' \
             --exclude='tpc_c_cplusplus/.git' \
             --exclude='tpc_c_cplusplus/lycium/build/*.o' \
             --exclude='tpc_c_cplusplus/lycium/tmp' \
-            .
+            . || true
 
           echo "完整项目压缩包信息:"
           ls -lh ijkplayer-complete-project.tar.gz
